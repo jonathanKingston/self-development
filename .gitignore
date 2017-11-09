@@ -36,6 +36,9 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+*.swn
+*.swo
+*.swp
 
 #Build files
 .rust
