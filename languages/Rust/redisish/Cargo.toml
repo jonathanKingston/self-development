@@ -4,3 +4,5 @@ version = "0.1.0"
 authors = ["jonathan"]
 
 [dependencies]
+futures = "0.1"
+futures-cpupool = "0.1"
