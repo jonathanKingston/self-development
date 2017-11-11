@@ -55,6 +55,49 @@ impl Redisish {
 }
 
 
+struct StreamParse<'a> {
+    stream: &'a TcpStream,
+    redisish: &'a Redisish
+}
+
+impl<'a> StreamParse<'a> {
+    fn new(stream: &'a TcpStream, redisish: &'a Redisish) -> Self {
+      StreamParse {
+        stream: stream,
+        redisish: redisish
+      }
+    }
+
+    fn parse_message(&self, content: String) -> Result<Message,TcpServerError> {
+       let (verb,body) = content.split_at(3);
+       match &verb {
+         &"Put" => Ok(Message::Put(String::from(body))),
+         &"Get" => Ok(Message::Get),
+         _ => Err(TcpServerError::Error(String::from("Unparsable message")))
+       }
+    }
+
+    fn stream_run(&mut self) {
+        let mut buffred = BufReader::new(self.stream.try_clone().unwrap());
+        let mut content = String::new();
+        buffred.read_line(&mut content);
+
+        println!("read");
+        match self.parse_message(content) {
+          Ok(Message::Get) => {
+            if let Some(first) = self.redisish.get() {
+              self.stream.write(first.as_bytes());
+            } else {
+              self.stream.write("Done!".as_bytes());
+            }
+          },
+          Ok(Message::Put(body)) => self.redisish.put(String::from(body)),
+          Err(e) => {
+            write!(self.stream, "{:?}", e);
+          }
+        };
+    }
+}
 
 
 #[derive(Debug)]
@@ -70,75 +113,45 @@ impl From <IoError> for TcpServerError {
 }
 
 struct TcpServer {
-    listener: TcpListener,
-    redisish: Redisish
+    listener: &'static TcpListener,
+    cpu_pool: futures_cpupool::CpuPool,
+    redisish: &'static Redisish
 }
 
 impl TcpServer {
-    fn parse_message(&self, content: String) -> Result<Message,TcpServerError> {
-       let (verb,body) = content.split_at(3);
-       match &verb {
-         &"Put" => Ok(Message::Put(String::from(body))),
-         &"Get" => Ok(Message::Get),
-         _ => Err(TcpServerError::Error(String::from("Unparsable message")))
-       }
-    }
-
-    fn stream_run(&self, stream: &mut TcpStream) {
-        let mut buffred = BufReader::new(stream.try_clone().unwrap());
-        let mut content = String::new();
-        buffred.read_line(&mut content);
-
-        println!("read");
-        match self.parse_message(content) {
-          Ok(Message::Get) => {
-            if let Some(first) = self.redisish.get() {
-              stream.write(first.as_bytes());
-            } else {
-              stream.write("Done!".as_bytes());
-            }
-          },
-          Ok(Message::Put(body)) => self.redisish.put(String::from(body)),
-          Err(e) => {
-            write!(stream, "{:?}", e);
-          }
-        };
-    }
 
     fn run(&mut self) -> Result<(),TcpServerError> {
-        let cpu_pool = Builder::new().create();
+        let x = vec![];
         loop {
-/*
-            if stream.is_err() 
-              break;
-            }
-*/
-          //  cpu_pool.spawn_fn(move || {
                 let (mut stream, _) = self.listener.accept().unwrap();
-                let result: Result<_, ()> = Ok(self.stream_run(&mut stream));
+                let stream_parse = StreamParse::new(&stream, &self.redisish);
+           let l = self.cpu_pool.spawn_fn(move || {
+                let result: Result<_, ()> = Ok(stream_parse.stream_run());
                 //let result: Result<_, ()> = Ok(1);
             //stream.shutdown(Shutdown::Both);
 
-           //     result
-          //  });
+                result
+            });
+    x.push(l);
 
             //self.stream_run(&mut stream.unwrap());
         }
-        //join_all(vec![x].into_iter());
+        join_all(x.into_iter());
         Ok(())
     }
 
-    fn new(listener: TcpListener, redisish: Redisish) -> Self {
+    fn new(listener: &'static TcpListener, redisish: &'static Redisish) -> Self {
       TcpServer {
         redisish: redisish,
-        listener: listener
+        listener: listener,
+        cpu_pool: Builder::new().create(),
       }
     }
 
-    fn bind<S>(bind_address: S, redisish: Redisish) -> Result<Self,TcpServerError>
+    fn bind<S>(bind_address: S, redisish: &'static Redisish) -> Result<Self,TcpServerError>
     where S: AsRef<str> {
       let listener = TcpListener::bind(bind_address.as_ref())?;
-      Ok(TcpServer::new(listener, redisish))
+      Ok(TcpServer::new(&listener, &redisish))
     }
 }
 
@@ -156,7 +169,7 @@ mod tests {
 
 fn main() {
     let mut redisish_result = Redisish::new();
-    let mut tcp_server_result = TcpServer::bind("127.0.0.1:8080", redisish_result);
+    let mut tcp_server_result = TcpServer::bind("127.0.0.1:8080", &redisish_result);
     if let Ok(mut tcp_server) = tcp_server_result {
         tcp_server.run();
     }
