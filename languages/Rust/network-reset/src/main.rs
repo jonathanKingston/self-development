@@ -14,14 +14,15 @@ fn main() {
         interface = args[2].clone();
     }
     let mut network_checker = NetworkChecker::new(router_ip, interface);
+//  network_checker.reset_network();
     network_checker.check_loop();
-//    network_checker.reset_network();
 }
 
 enum NetworkCheckerResponse {
     Res(&'static str),
     ResInt(usize),
 }
+
 enum NetworkCheckerError {
     StrError(&'static str),
     IntError(ParseIntError)
@@ -34,6 +35,7 @@ impl From <ParseIntError> for NetworkCheckerError {
 }
 
 struct NetworkChecker {
+    error_count: u32,
     byte_count: usize,
     reset_count: u32,
     debug: u8,
@@ -44,7 +46,8 @@ struct NetworkChecker {
 impl NetworkChecker {
     fn new(router_ip: String, interface: String) -> Self {
       NetworkChecker {
-          debug: 0,
+          debug: 2,
+          error_count: 0,
           byte_count: 0,
           reset_count: 0,
           router_ip: router_ip,
@@ -52,8 +55,8 @@ impl NetworkChecker {
       }
     }
 
-    fn debug(&self, level: u8, message: &str) {
-        if self.debug < level { println!("{}", message); }
+    fn debug<S: AsRef<str>>(&self, level: u8, message: S) {
+        if self.debug > level { println!("{}", message.as_ref()); }
     }
 
     fn ping_network(&mut self) -> Result<NetworkCheckerResponse, NetworkCheckerError> {
@@ -70,75 +73,73 @@ impl NetworkChecker {
         Ok(NetworkCheckerResponse::Res("Ok"))
     }
 
-    fn check_ping_loop(&mut self) -> Result<NetworkCheckerResponse, NetworkCheckerError> {
-        let mut error_count = 0;
-        let pause = 400;
-        loop {
-            let ping_response = self.ping_network();
-            if let Ok(_) = ping_response {
-                return self.check_loop();
+    fn check_ping(&mut self) -> () {
+        self.debug(2, format!("Bytes {}", self.byte_count));
+        let ping_response = self.ping_network();
+        if let Ok(_) = ping_response {
+            self.error_count = 0;
+            return;
+        } else {
+            self.error_count += 1;
+            self.debug(2, format!("Error ping count {}", self.error_count));
+        }
+    }
+
+    fn check_byte_count(&mut self) -> () {
+        let current_byte_count = self.byte_count;
+        if let Ok(NetworkCheckerResponse::ResInt(new_byte_count)) = self.get_byte_count() {
+            if current_byte_count < new_byte_count {
+                self.byte_count = new_byte_count;
+                self.error_count = 0;
+            } else {
+                self.error_count += 1;
             }
-            error_count += 1;
-            if error_count > 2 {
-                return self.reset_network();
-            }
-            if self.debug > 2 {
-                println!("Error ping count {}", error_count);
-            }
-            thread::sleep(time::Duration::from_millis(pause));
+        } else {
+            self.error_count += 1;
         }
     }
 
     fn check_loop(&mut self) -> Result<NetworkCheckerResponse, NetworkCheckerError> {
-        let mut error_count = 0;
-        let pause = 100;
+        self.error_count = 0;
+        let mut pause = 100;
         loop {
-            let current_byte_count = self.byte_count;
-            if let Ok(NetworkCheckerResponse::ResInt(new_byte_count)) = self.check_byte_count() {
-                if current_byte_count < new_byte_count {
-                    self.byte_count = new_byte_count;
-                    error_count = 0;
-                } else {
-                    error_count += 1;
+            match self.error_count {
+                0...5 => {
+                    pause = 100;
+                    self.check_byte_count();
                 }
-            } else {
-                error_count += 1;
+                6...7 => {
+                    pause = 400;
+                    self.check_ping();
+                }
+                _ => {
+                    self.reset_network();
+                }
             }
-            if error_count > 4 {
-                return self.check_ping_loop();
-            }
-            if self.debug > 1 {
-                println!("Error count {}", error_count);
-            }
+            self.debug(2, format!("Error count {}", self.error_count));
             thread::sleep(time::Duration::from_millis(pause));
         }
     }
 
     fn run_command(&self, command: &str, args: &[&str]) -> Result<std::process::Output, NetworkCheckerError> {
-        if self.debug > 1 {
-            println!("Command: {} {:?}", command, args);
-        }
+        self.debug(2, format!("Command: {} {:?}", command, args));
         let output = Command::new(command)
                              .args(args)
                              .output();
         if let Ok(output_response) = output {
-            if self.debug > 1 {
-              println!("status: {}", output_response.status);
-              println!("stdout: {}", String::from_utf8_lossy(&output_response.stdout));
-              println!("stderr: {}", String::from_utf8_lossy(&output_response.stderr));
-            }
+            self.debug(3, format!("status: {}", output_response.status));
+            self.debug(3, format!("stdout: {}", String::from_utf8_lossy(&output_response.stdout)));
+            self.debug(3, format!("stderr: {}", String::from_utf8_lossy(&output_response.stderr)));
             Ok(output_response)
         } else if let Err(output_error) = output {
-            if self.debug > 1 {
-                println!("Err {:?}", output_error);
-            }
+            self.debug(2, format!("Err {:?}", output_error));
             Err(NetworkCheckerError::StrError("Error happened in running command"))
         } else {
             Err(NetworkCheckerError::StrError("Unknown Error"))
         }
     }
 
-    fn check_byte_count(&self) -> Result<NetworkCheckerResponse, NetworkCheckerError> {
+    fn get_byte_count(&self) -> Result<NetworkCheckerResponse, NetworkCheckerError> {
         let output = self.run_command("ifconfig", &[
             &self.interface
         ])?;
@@ -148,9 +149,7 @@ impl NetworkChecker {
             let mut parts2 = second_part.split("bytes");
             if let Some(parties2) = parts2.nth(0) {
                 let bytes = usize::from_str(parties2.trim())?;
-                if self.debug > 1 {
-                    println!("Bytes: {:?}", bytes);
-                }
+                self.debug(2, format!("Bytes: {:?}", bytes));
                 return Ok(NetworkCheckerResponse::ResInt(bytes));
             }
         }
@@ -160,9 +159,7 @@ impl NetworkChecker {
     fn reset_network(&mut self) -> Result<NetworkCheckerResponse, NetworkCheckerError> {
         self.reset_count += 1;
         self.byte_count = 0;
-        if self.debug > 1 {
-            println!("Resetting network {}", self.reset_count);
-        }
+        self.debug(1, format!("Resetting network {}", self.reset_count));
         let output = self.run_command("service", &[
             "network-manager",
             "restart",
@@ -173,6 +170,6 @@ impl NetworkChecker {
             self.check_loop();
             return Ok(NetworkCheckerResponse::Res("Reset network"));
         }
-        return self.reset_network();
+        return Err(NetworkCheckerError::StrError("Down"));
     }
 }
