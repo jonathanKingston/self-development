@@ -1,0 +1,6 @@
+[package]
+name = "csp"
+version = "0.1.0"
+authors = ["Jonathan Kingston <jonathan@jooped.co.uk>"]
+
+[dependencies]
