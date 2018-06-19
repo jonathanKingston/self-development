@@ -3,6 +3,7 @@
 fn main() {
     first();
     second();
+    third();
 }
 
 fn first() {
@@ -48,4 +49,20 @@ fn second() {
             }
         }
     }
+}
+
+// customised from https://twitter.com/ladybenko/status/1008329893585698816
+// By @jimblandy
+fn third() {
+  // Can pass a range here like 0..183 to remove checked add
+  let mut fib = (0..).scan((0i128,1i128), |s, _| {
+      // checked add prevents overflow
+      *s = (s.1, s.0.checked_add(s.1)?);
+      Some(s.0)
+  });
+
+  let n = 5000;
+  for i in 1..n {
+    println!("{} for {:?}", i, fib.next());
+  }
 }
