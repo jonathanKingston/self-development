@@ -1,58 +1,60 @@
-use std::collections::{HashMap};
-use form_builder::{Element, document};
+use form_builder::{document, Element};
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 pub enum BodyContent {
-  String(String),
-  Element(AnElement),
-  Input(TextField),
+    String(String),
+    Element(AnElement),
+    Input(TextField),
 }
 
-impl From <String> for BodyContent {
-  fn from(content: String) -> Self {
-    BodyContent::String(content)
-  }
+impl From<String> for BodyContent {
+    fn from(content: String) -> Self {
+        BodyContent::String(content)
+    }
 }
 
-impl From <&'static str> for BodyContent {
-  fn from(content: &'static str) -> Self {
-    BodyContent::String(content.to_string())
-  }
+impl From<&'static str> for BodyContent {
+    fn from(content: &'static str) -> Self {
+        BodyContent::String(content.to_string())
+    }
 }
 
-impl From <AnElement> for BodyContent {
-  fn from(content: AnElement) -> Self {
-    BodyContent::Element(content)
-  }
+impl From<AnElement> for BodyContent {
+    fn from(content: AnElement) -> Self {
+        BodyContent::Element(content)
+    }
 }
 
 // TODO this is a hack we need a trait for elements
-impl From <TextField> for BodyContent {
-  fn from(content: TextField) -> Self {
-    BodyContent::Input(content)
-  }
+impl From<TextField> for BodyContent {
+    fn from(content: TextField) -> Self {
+        BodyContent::Input(content)
+    }
 }
 
-pub trait El {
-}
+pub trait El {}
 
 /*Called AnElement as Element is used above */
 #[derive(Serialize, Deserialize)]
 pub struct AnElement {
-  tag_name: String,
-  attributes: HashMap<String, String>,
-  body: Vec<BodyContent>
+    tag_name: String,
+    attributes: HashMap<String, String>,
+    body: Vec<BodyContent>,
 }
 
-impl El for AnElement {
-}
+impl El for AnElement {}
 
 impl AnElement {
-    pub fn create(tag_name: &str, attributes: HashMap<String, String>, body: Vec<BodyContent>) -> AnElement {
+    pub fn create(
+        tag_name: &str,
+        attributes: HashMap<String, String>,
+        body: Vec<BodyContent>,
+    ) -> AnElement {
         AnElement {
-          tag_name: tag_name.into(),
-          attributes,
-          body
+            tag_name: tag_name.into(),
+            attributes,
+            body,
         }
     }
 
@@ -63,15 +65,9 @@ impl AnElement {
         }
         for value in &self.body {
             el.append_child(match value {
-                BodyContent::Element(el) => {
-                    el.build()
-                },
-                BodyContent::Input(el) => {
-                    el.build()
-                },
-                BodyContent::String(stringy) => {
-                    document.createTextNode(stringy)
-                },
+                BodyContent::Element(el) => el.build(),
+                BodyContent::Input(el) => el.build(),
+                BodyContent::String(stringy) => document.createTextNode(stringy),
             });
         }
         el
@@ -80,9 +76,9 @@ impl AnElement {
 
 #[derive(Serialize, Deserialize)]
 pub struct TextField {
-  pub maxlength: i32,
-  pub name: String,
-  pub value: String
+    pub maxlength: i32,
+    pub name: String,
+    pub value: String,
 }
 
 macro_rules! hashmap {
@@ -97,11 +93,15 @@ macro_rules! hashmap {
 
 impl TextField {
     fn build(&self) -> Element {
-        let el = AnElement::create("input", hashmap!{
-          "maxlength": self.maxlength,
-          "name": &self.name
-        }, vec![]);
-/*
+        let el = AnElement::create(
+            "input",
+            hashmap!{
+              "maxlength": self.maxlength,
+              "name": &self.name
+            },
+            vec![],
+        );
+        /*
         let el = AnElement::create("input", vec![
           ("maxlength", &*self.maxlength.to_string()),
           ("name", &self.name)
