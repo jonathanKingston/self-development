@@ -10,7 +10,7 @@ use wasm_bindgen::prelude::*;
 
 mod types;
 use serde_json::Error;
-pub use types::{AnElement, BodyContent, TextField};
+pub use types::{AnElement, BodyContent, El, TextArea, TextField};
 
 pub mod form_builder {
     use wasm_bindgen::prelude::*;
@@ -61,14 +61,26 @@ pub fn run() {
         maxlength: 12,
     };
 
-    match serde_json::to_string(&name_field) {
-        Ok(j) => {
-            form_builder::document
-                .body()
-                .append_child(form_builder::document.createTextNode(&j));
-        }
-        _ => {}
-    };
+    fn debug<E>(field: &E)
+    where
+        E: El + serde::Serialize,
+    {
+        match serde_json::to_string(field) {
+            Ok(j) => {
+                let text_area = TextArea {
+                    name: "output".into(),
+                    value: j.into(),
+                };
+                form_builder::document
+                    .body()
+                    .append_child(text_area.build());
+            }
+            _ => {}
+        };
+    }
+
+    debug(&name_field);
+
     let email_field = AnElement::create(
         "input",
         hashmap!{
@@ -82,13 +94,8 @@ pub fn run() {
         hashmap!{},
         vec![name_field.into(), "Email".into(), email_field.into()],
     );
-    match serde_json::to_string(&label) {
-        Ok(j) => {
-            form_builder::document
-                .body()
-                .append_child(form_builder::document.createTextNode(&j));
-        }
-        _ => {}
-    };
+
+    debug(&label);
+
     form_builder::document.body().append_child(label.build());
 }

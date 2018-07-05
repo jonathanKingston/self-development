@@ -1,6 +1,16 @@
 use form_builder::{document, Element};
 use std::collections::HashMap;
 
+macro_rules! hashmap {
+    ($( $key:tt : $value:expr ),*) => {
+      {
+        let mut hash = HashMap::new();
+        $( hash.insert($key.to_string(), $value.to_string()); )*
+        hash
+      }
+    };
+}
+
 #[derive(Serialize, Deserialize)]
 pub enum BodyContent {
     String(String),
@@ -81,16 +91,6 @@ pub struct TextField {
     pub value: String,
 }
 
-macro_rules! hashmap {
-    ($( $key:tt : $value:expr ),*) => {
-      {
-        let mut hash = HashMap::new();
-        $( hash.insert($key.to_string(), $value.to_string()); )*
-        hash
-      }
-    };
-}
-
 impl TextField {
     fn build(&self) -> Element {
         let el = AnElement::create(
@@ -101,12 +101,28 @@ impl TextField {
             },
             vec![],
         );
-        /*
-        let el = AnElement::create("input", vec![
-          ("maxlength", &*self.maxlength.to_string()),
-          ("name", &self.name)
-        ], vec![]);
-*/
+        el.build()
+    }
+}
+
+impl El for TextField {}
+
+#[derive(Serialize, Deserialize)]
+pub struct TextArea {
+    pub name: String,
+    pub value: String,
+}
+
+impl TextArea {
+    pub fn build(&self) -> Element {
+        let el = AnElement::create(
+            "textarea",
+            hashmap!{
+              "name": &self.name
+            },
+            // TODO fix clone here?
+            vec![self.value.clone().into()],
+        );
         el.build()
     }
 }
