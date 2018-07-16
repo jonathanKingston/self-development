@@ -184,7 +184,7 @@ fn create_person<'b> -> Person<'b> {
 - Rust does allow ranges to create `str` from a String as it's a little more explicit about wanting a `str`
   - However Rust panics if the range isn't valid UTF8
 
-### [https://doc.rust-lang.org/stable/book/second-edition/ch08-03-hash-maps.html](https://doc.rust-lang.org/stable/book/second-edition/ch08-03-hash-maps.html)
+### [Storing Keys with Associated Values in Hash Maps](https://doc.rust-lang.org/stable/book/second-edition/ch08-03-hash-maps.html)
 - `HashMap<K, V>` are another collection type also called objects, hashes and many other names in other languages.
 - To add values `insert(k, v)` is the method to call.
 - Hash maps are 'homogeneous' like Vec in that all keys need to be of a single type and values need to be of a single type.
@@ -204,7 +204,7 @@ fn create_person<'b> -> Person<'b> {
       let x = map.entry(b).or_insert(0);
       *x += 1;
       ```
-#### [Hashing functions](https://doc.rust-lang.org/stable/book/second-edition/ch08-03-hash-maps.html#hashing-functions]
+#### [Hashing functions](https://doc.rust-lang.org/stable/book/second-edition/ch08-03-hash-maps.html#hashing-functions)
 - The default hasing function is DoS resistant but isn't the fastest.
 - `hasher` is a trait which provides the hashing function.
 
@@ -345,4 +345,65 @@ fn shout<T, U>(beep: T, thing: U) -> String
 
 ### [Validating References with Lifetimes](https://doc.rust-lang.org/stable/book/second-edition/ch10-03-lifetime-syntax.html)
 
-Lifetimes guarantee with a generic that references last as long as we want them to live.
+- Lifetimes guarantee with a generic that references last as long as we want them to live.
+- Every reference has a lifetime, even if most are implied.
+  - Rust requires annotation of lifetimes when they can't be inferred.
+- Lifetimes are intended to prevent 'dangling references' where a reference points to different data it was supposed to.
+
+- Rust doesn't permit reading a variable before it has a value assigned to it. 
+
+- The *borrow checker* is what prevents variable access of dropped references. When a variable doesn't live long enough, it causes a compile time error.
+  - The borrow checker checks the length of the reference lifetime to make sure if lives as long as the variable that is trying to use it.
+
+- When a function takes borrowed values, it might be unclear when it returns a borrowed value what the lifetime of the values are.
+- Lifetimes **don't** change how long the reference lives.
+- `&'a mut i32` is an `a` lifetime annotation on a mutable i32
+- Lifetimes explain how multiple references interact
+
+- When a function has references from other code it's likely rust can't determine the lifetimes
+- When a function is called, it will get concrete lifetimes passed in rather than generic annotations.
+  - The shortest concrete lifetime between all concrete lifetimes that are given to the function.
+```
+    fn bigger<'a>(n: &'a i32, j: &'a i32) -> &'a i32 {
+        if n > j {
+            return n;
+        }
+        j
+    }
+    let x = 12;
+    let y = 2;
+    let b = bigger(&x, &y);
+    println!("bigger number: {}", b);
+```
+- It's not clear to Rust how long the return is permitted to live if there is more than one reference, without the annotations above the code won't compile.
+
+
+- "Lifetimes are descriptive, not prescriptive."
+
+- When returning a reference from a function, the lifetime has to match the lifetime of one of the params.
+- Lifetimes are about connecting the relationships of data lifetimes not trying to expand them.
+
+- Structs can hold references too, they need to have annotations on every field.
+  - Lifetimes here help anotate that our fields lifetime outlives the struct.
+```
+struct Boop<'a> {
+    title: &'a str,
+}
+```
+
+- The cases where Rust can infer the lifetimes are called *lifetime elision rules*
+- Lifetimes on function or method params are called *input lifetimes* and *output lifetimes* are for return values.
+- Three elision rules:
+  - Each input parameter that is a reference gets it's own lifetime: `fn test<'a, 'b>(d: &'a i32, e: &'b i32)`
+  - If there is only one input lifetime, that is assigned to an output that is a reference: `fn thing<'a>(b: &'a i32) -> &'a i32`
+  - If one of the reference is `&self` or `&mut self`, then elision will choose that as the lifetime.
+
+- If the elision rules resolve all reference lifetimes, then no lifetime annotations are needed to compile.
+  - If there are some left, the compiler will ask for those to be filled.
+
+- `&'static` is special in that it lives for the lifetime of the program.
+  - String literals automatically have static lifetimes.
+  - Suggestion to use static, is usually a lifetime error and people should think before using it.
+
+
+## [Writing Automated Tests](https://doc.rust-lang.org/stable/book/second-edition/ch11-00-testing.html)
