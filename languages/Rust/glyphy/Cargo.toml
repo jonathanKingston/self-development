@@ -1,0 +1,8 @@
+[package]
+name = "glyphy"
+version = "0.1.0"
+authors = ["Jonathan Kingston <jonathan@jooped.co.uk>"]
+
+[dependencies]
+yaml-rust = "0.4"
+markdown = { git = "https://github.com/johannhof/markdown.rs" }
